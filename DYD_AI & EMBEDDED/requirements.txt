@@ -1,0 +1,8 @@
+numpy==1.26.3
+imutils==0.5.4
+cmake==3.28.1
+dlib==19.22.99
+opencv-python==4.9.0.80
+scipy==1.11.4
+geopy~=2.4.1
+requests~=2.31.0

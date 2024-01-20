@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial import distance
 import requests
 from geopy.geocoders import Nominatim
-import RPi.GPIO as GPIO #이 라이브러리는 라즈베리파이에서 설치하고 실행하면 됨
+import RPi.GPIO as GPIO #이 라이브러리는 라즈베리파이에서 설치하고 실행
 
 # GPIO 핀 번호 설정
 BUZZER_PIN = 18
@@ -17,7 +17,7 @@ GPIO.setup(BUZZER_PIN, GPIO.OUT)
 # 모델 로드 및 기타 설정 생략
 
 # Flask 서버 엔드포인트
-flask_server_endpoint = 'http://your_flask_server_address/api/eye_status'
+flask_server_endpoint = '여기에 플라스크 주소를 입력'
 
 # 번호판 및 위치 정보를 저장할 변수
 license_plate = None
@@ -73,11 +73,11 @@ while True:
             total += time.time() - check_time
             if total >= 5.0:
                 # 번호판 정보를 실제로 어떻게 추출할지에 따라서 아래 라인을 변경
-                license_plate = "ABC123"
+                license_plate = "123가4567" #차량 번호 지정
 
                 # 위치 정보 가져오기
-                location = geolocator.reverse((h, w), language='en')  # 현재 좌표를 주소로 변환
-                location_info = location.address if location else "Unknown Location"
+                location = geolocator.reverse((h, w), language='kr')  # 현재 좌표를 주소로 변환
+                location_info = location.address if location else "위치가 표시되지 않았습니다."
 
                 # 데이터를 Flask 서버로 전송
                 data = {
@@ -93,6 +93,7 @@ while True:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                     time.sleep(1)  # 버저 울림 시간 설정 (1초)
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
+                    
 
                 except requests.exceptions.RequestException as e:
                     print(f"서버에 데이터 전송 중 오류 발생: {e}")

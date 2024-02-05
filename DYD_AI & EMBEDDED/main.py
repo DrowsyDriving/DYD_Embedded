@@ -3,16 +3,7 @@ import dlib
 import time
 import numpy as np
 from scipy.spatial import distance
-import requests
-from geopy.geocoders import Nominatim
-import RPi.GPIO as GPIO
-
-# GPIO 핀 번호 설정
-BUZZER_PIN = 18
-
-# GPIO 설정
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(BUZZER_PIN, GPIO.OUT)
+import RPi.GPIO as GPIO  # GPIO 라이브러리 추가
 
 # 모델 로드
 detect = './detect/'
@@ -29,11 +20,15 @@ cam = cv2.VideoCapture(0)
 # 최소 인식률
 minimum_confidence = 0.5
 
-# Flask 서버 엔드포인트
-flask_server_endpoint = '서버 주소 입력'
+# GPIO 설정
+BUZZER_PIN = 18  # 실제로 연결된 GPIO 핀으로 대체
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
-# 번호판 및 위치 정보를 저장할 변수
-license_plate = "123가4567"  # 여기에 원하는 번호판을 입력하세요
+# 시간 측정 변수
+check_time = None
+closed_eye = False
+total = 0
 
 # 눈 감은 정도 확인 함수
 def ear(eyes):
@@ -43,12 +38,13 @@ def ear(eyes):
     eye_aspect_ratio = (a + b) / (2.0 * c)
     return eye_aspect_ratio
 
-# 위치 정보 가져오기 위한 geopy 설정
-geolocator = Nominatim(user_agent="eye_tracking_app")
-
-# 시간 측정 변수
-check_time = None
-closed_eye = False
+# 버저 제어 함수
+def buzzer_alert():
+    for _ in range(3):  # 3번 띠 띠 띠 소리 울리기
+        GPIO.output(BUZZER_PIN, GPIO.HIGH)
+        time.sleep(0.5)
+        GPIO.output(BUZZER_PIN, GPIO.LOW)
+        time.sleep(0.5)
 
 while True:
     ret, frame = cam.read()
@@ -72,64 +68,37 @@ while True:
             start_x, start_y, end_x, end_y = box.astype('int')
             faces.append(dlib.rectangle(start_x, start_y, end_x, end_y))
 
-            start_x, start_y = max(0, start_x), max(0, start_y)
-            end_x, end_y = min(w - 1, end_x), min(h - 1, end_y)
-
     # 얼굴 인식 후 랜드마크로 눈 인식
     for face in faces:
         face_landmark = predictor(frame, face)
 
         left_eyes = []
         right_eyes = []
-        for eye in range(36, 42):  # parts : 전체 구하기 / part(n) : n 부분 구하기
+        for eye in range(36, 42):  
             left_eyes.append([face_landmark.part(eye).x, face_landmark.part(eye).y])
             right_eyes.append([face_landmark.part(eye + 6).x, face_landmark.part(eye + 6).y])
 
         # 눈 감은 정도를 이용해서 시간을 측정
         if closed_eye:
             total += time.time() - check_time
-            if total >= 5.0:
-                # 위치 정보 가져오기
-                location = geolocator.reverse((h, w), language='en')  # 현재 좌표를 주소로 변환
-                location_info = location.address if location else "Unknown Location"
-
-                # 데이터를 Flask 서버로 전송
-                data = {
-                    'license_plate': license_plate,
-                    'location': location_info
-                }
-
-                try:
-                    response = requests.post(flask_server_endpoint, json=data)
-                    print(response.text)
-
-                    # 눈을 5초 이상 감은 경우 버저 울리기
-                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
-                    time.sleep(1)  # 버저 울림 시간 설정 (1초)
-                    GPIO.output(BUZZER_PIN, GPIO.LOW)
-
-                except requests.exceptions.RequestException as e:
-                    print(f"서버에 데이터 전송 중 오류 발생: {e}")
-
-                closed_eye = False  # 한 번만 전송 후 눈 감음 상태 초기화
-
+            if total >= 5.0:  # 5초 이상 눈을 감으면
+                buzzer_alert()  # 3번 띠 띠 띠 소리 울리기
+                closed_eye = False  # 눈을 다시 감은 상태로 갱신
         else:
             total = 0
+            GPIO.output(BUZZER_PIN, GPIO.LOW)  # 버저 끄기
 
-        # 눈 감은 상태 갱신
         left_eye, right_eye = ear(left_eyes), ear(right_eyes)
         if left_eye < 0.15 and right_eye < 0.15:
             closed_eye = True
             check_time = time.time()
-        else:
-            closed_eye = False
 
     cv2.imshow('test', frame)
 
     if cv2.waitKey(33) == 27:
         break
 
-# 루프 종료 시 GPIO 리소스 해제 및 OpenCV 창 닫기
+# GPIO 리소스 해제
 GPIO.cleanup()
 cam.release()
 cv2.destroyAllWindows()

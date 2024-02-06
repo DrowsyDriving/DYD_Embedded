@@ -2,8 +2,8 @@ import cv2
 import dlib
 import time
 import numpy as np
+import requests
 from scipy.spatial import distance
-import RPi.GPIO as GPIO  # GPIO 라이브러리 추가
 
 # 모델 로드
 detect = './detect/'
@@ -20,15 +20,14 @@ cam = cv2.VideoCapture(0)
 # 최소 인식률
 minimum_confidence = 0.5
 
-# GPIO 설정
-BUZZER_PIN = 18  # 실제로 연결된 GPIO 핀으로 대체
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(BUZZER_PIN, GPIO.OUT)
-
 # 시간 측정 변수
 check_time = None
 closed_eye = False
 total = 0
+warning_count = 0
+
+# 플라스크 서버 URL
+server_url = 'http://your_server_ip:5000/warning'
 
 # 눈 감은 정도 확인 함수
 def ear(eyes):
@@ -38,13 +37,25 @@ def ear(eyes):
     eye_aspect_ratio = (a + b) / (2.0 * c)
     return eye_aspect_ratio
 
-# 버저 제어 함수
-def buzzer_alert():
-    for _ in range(3):  # 3번 띠 띠 띠 소리 울리기
-        GPIO.output(BUZZER_PIN, GPIO.HIGH)
-        time.sleep(0.5)
-        GPIO.output(BUZZER_PIN, GPIO.LOW)
-        time.sleep(0.5)
+# 서버로 데이터 전송 함수
+def send_data(car_number, warning_level, latitude, longitude):
+    data = {
+        'car_number': car_number,
+        'warning_level': warning_level,
+        'latitude': latitude,
+        'longitude': longitude
+    }
+    response = requests.post(server_url, json=data)
+    if response.status_code == 200:
+        print("Data sent successfully!")
+    else:
+        print("Failed to send data to server.")
+
+# 위치 정보 가져오는 함수
+def get_location():
+    response = requests.get('https://ipinfo.io/json')
+    data = response.json()
+    return data
 
 while True:
     ret, frame = cam.read()
@@ -74,31 +85,34 @@ while True:
 
         left_eyes = []
         right_eyes = []
-        for eye in range(36, 42):  
+        for eye in range(36, 42):  # parts : 전체 구하기 / part(n) : n 부분 구하기
             left_eyes.append([face_landmark.part(eye).x, face_landmark.part(eye).y])
             right_eyes.append([face_landmark.part(eye + 6).x, face_landmark.part(eye + 6).y])
 
         # 눈 감은 정도를 이용해서 시간을 측정
         if closed_eye:
             total += time.time() - check_time
-            if total >= 5.0:  # 5초 이상 눈을 감으면
-                buzzer_alert()  # 3번 띠 띠 띠 소리 울리기
-                closed_eye = False  # 눈을 다시 감은 상태로 갱신
+            if total >= 5.0:
+                location_data = get_location()
+                latitude = location_data.get('loc').split(',')[0]
+                longitude = location_data.get('loc').split(',')[1]
+                send_data(car_number='car_number', warning_level=warning_count, latitude=latitude, longitude=longitude)
+                warning_count += 1
+                total = 0
         else:
             total = 0
-            GPIO.output(BUZZER_PIN, GPIO.LOW)  # 버저 끄기
 
         left_eye, right_eye = ear(left_eyes), ear(right_eyes)
         if left_eye < 0.15 and right_eye < 0.15:
             closed_eye = True
             check_time = time.time()
+        else:
+            closed_eye = False
 
     cv2.imshow('test', frame)
 
     if cv2.waitKey(33) == 27:
         break
 
-# GPIO 리소스 해제
-GPIO.cleanup()
 cam.release()
 cv2.destroyAllWindows()

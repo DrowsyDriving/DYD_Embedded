@@ -27,7 +27,7 @@ total = 0
 warning_count = 0
 
 # 플라스크 서버 URL
-server_url = 'http://your_server_ip:5000/warning'
+server_url = 'http://drowsydriving.site:8080'
 
 # 눈 감은 정도 확인 함수
 def ear(eyes):

@@ -79,6 +79,12 @@ while True:
             start_x, start_y, end_x, end_y = box.astype('int')
             faces.append(dlib.rectangle(start_x, start_y, end_x, end_y))
 
+            # 얼굴 바인딩 박스
+            cv2.rectangle(frame, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2)
+
+            start_x, start_y = max(0, start_x), max(0, start_y)
+            end_x, end_y = min(w - 1, end_x), min(h - 1, end_y)
+
     # 얼굴 인식 후 랜드마크로 눈 인식
     for face in faces:
         face_landmark = predictor(frame, face)
@@ -88,6 +94,12 @@ while True:
         for eye in range(36, 42):  # parts : 전체 구하기 / part(n) : n 부분 구하기
             left_eyes.append([face_landmark.part(eye).x, face_landmark.part(eye).y])
             right_eyes.append([face_landmark.part(eye + 6).x, face_landmark.part(eye + 6).y])
+
+            # 눈 주변 바인딩 박스
+            (x, y, w, h) = cv2.boundingRect(np.array([left_eyes]))
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            (x, y, w, h) = cv2.boundingRect(np.array([right_eyes]))
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
         # 눈 감은 정도를 이용해서 시간을 측정
         if closed_eye:
